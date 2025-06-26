@@ -128,18 +128,46 @@ AVPixelFormat VideoDecoder::getPixelFormat() const
     return codecCtx ? codecCtx->pix_fmt : AV_PIX_FMT_NONE;
 }
 
+//读到一帧 
 bool VideoDecoder::readFrame(AVFrame *frame)
 {
-    int ret = avcodec_receive_frame(codecCtx, frame);
-    if (ret == 0)
-        return true; // 成功拿到一帧
-    else if (ret == AVERROR(EAGAIN))
-        return false; // 需要更多包，先去送包
-    else if (ret == AVERROR_EOF)
-        return false; // 已解码完
-    else
+    int ret;
+    // 先送包
+    while ((ret = av_read_frame(formatCtx, packet)) >= 0)
     {
-        std::cerr << "Error decoding frame: " << ret << std::endl;
-        return false;
+        if (packet->stream_index == videoStreamIndex)
+        {
+            ret = avcodec_send_packet(codecCtx, packet);
+            av_packet_unref(packet);
+            if (ret < 0)
+            {
+                std::cerr << "Error sending packet to decoder: " << ret << std::endl;
+                return false;
+            }
+            // 尝试接收帧
+            ret = avcodec_receive_frame(codecCtx, frame);
+            if (ret == 0)
+            {
+                return true; // 拿到一帧成功
+            }
+            else if (ret == AVERROR(EAGAIN))
+            {
+                continue; // 需要更多包，继续读取
+            }
+            else if (ret == AVERROR_EOF)
+            {
+                return false; // 解码完毕
+            }
+            else
+            {
+                std::cerr << "Error decoding frame: " << ret << std::endl;
+                return false;
+            }
+        }
+        else
+        {
+            av_packet_unref(packet);
+        }
     }
+    return false; // 读取结束或失败
 }
