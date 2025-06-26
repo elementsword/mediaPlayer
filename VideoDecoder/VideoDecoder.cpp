@@ -24,24 +24,25 @@ bool VideoDecoder::open(const std::string &url)
     }
 
     // 遍历所有流，找到类型为视频（AVMEDIA_TYPE_VIDEO）的那一条流，并记录其索引
-    int videoIndex = -1;
     for (int i = 0; i < formatCtx->nb_streams; i++)
     {
         if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
-            videoIndex = i;
+            videoStreamIndex = i;
+            std::cout << "找到了" << std::endl;
+            break;
         }
     }
 
     // 如果找不到视频流，则报错返回
-    if (videoIndex < 0)
+    if (videoStreamIndex < 0)
     {
         std::cerr << "No video stream found." << std::endl;
         return false;
     }
 
     // 从 formatCtx 中取出对应的视频流的压缩参数（codecpar）
-    AVCodecParameters *codecpar = formatCtx->streams[videoIndex]->codecpar;
+    AVCodecParameters *codecpar = formatCtx->streams[videoStreamIndex]->codecpar;
 
     // 根据 codec_id 查找对应的解码器（比如 H264 解码器）
     const AVCodec *decoder = avcodec_find_decoder(codecpar->codec_id);
@@ -77,10 +78,7 @@ bool VideoDecoder::open(const std::string &url)
     packet = av_packet_alloc();
 
     // 保存找到的视频流指针，后续可以直接使用它
-    videoStream = formatCtx->streams[videoIndex];
-
-    // 更新成员变量，保存视频流索引
-    videoStreamIndex = videoIndex;
+    videoStream = formatCtx->streams[videoStreamIndex];
 
     return true;
 }
@@ -128,7 +126,7 @@ AVPixelFormat VideoDecoder::getPixelFormat() const
     return codecCtx ? codecCtx->pix_fmt : AV_PIX_FMT_NONE;
 }
 
-//读到一帧 
+// 读到一帧
 bool VideoDecoder::readFrame(AVFrame *frame)
 {
     int ret;
