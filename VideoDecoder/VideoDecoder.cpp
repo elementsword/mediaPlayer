@@ -1,6 +1,6 @@
 #include "VideoDecoder.h"
 
-VideoDecoder::VideoDecoder()
+VideoDecoder::VideoDecoder() : formatCtx(nullptr), codecCtx(nullptr), videoStream(nullptr), videoStreamIndex(-1), packet(nullptr)
 {
 }
 VideoDecoder::~VideoDecoder()
@@ -9,6 +9,7 @@ VideoDecoder::~VideoDecoder()
 
 bool VideoDecoder::open(const std::string &url)
 {
+    std::cout << "Before open_input, formatCtx = " << formatCtx << std::endl;
     // 打开媒体文件（如 .mp4、.ts 等），并初始化 AVFormatContext 结构体
     if (avformat_open_input(&formatCtx, url.c_str(), nullptr, nullptr) < 0)
     {
@@ -26,6 +27,7 @@ bool VideoDecoder::open(const std::string &url)
     // 遍历所有流，找到类型为视频（AVMEDIA_TYPE_VIDEO）的那一条流，并记录其索引
     for (int i = 0; i < formatCtx->nb_streams; i++)
     {
+        std::cout << formatCtx->streams[i]->codecpar->codec_type << std::endl;
         if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStreamIndex = i;

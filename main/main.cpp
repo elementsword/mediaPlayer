@@ -5,8 +5,8 @@
 
 int main(int argc, char *argv[])
 {
-    const std::string &url = argv[1];
-    std::fstream file(url);
+    std::string url = argv[1];
+    std::cout << url << std::endl;
     VideoDecoder videodecoder;
     Sdl sdl;
     videodecoder.open(url);
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        AVFrame *frame =nullptr;
+        AVFrame *frame = nullptr;
         videodecoder.readFrame(frame);
         sdl.renderFrame(frame->data, frame->linesize);
     }

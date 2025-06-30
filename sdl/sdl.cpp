@@ -82,6 +82,7 @@ void Sdl::renderFrame(uint8_t *data[3], int linesize[3])
 }
 bool Sdl::handleEvents()
 {
+    return true;
 }
 void Sdl::cleanup()
 {
