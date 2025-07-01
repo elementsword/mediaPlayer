@@ -1,6 +1,10 @@
 CXX := g++
-CXXFLAGS := -Wall -g -std=c++17 -I/usr/include/SDL2 -I./VideoDecoder -I./sdl
-LDFLAGS := -lSDL2 -lavformat -lavcodec -lavutil -lswscale -lavdevice
+PKG_FFMPEG_CFLAGS := $(shell pkg-config --cflags libavformat libavcodec libavutil libswscale libavdevice)
+PKG_FFMPEG_LDFLAGS := $(shell pkg-config --libs libavformat libavcodec libavutil libswscale libavdevice)
+
+CXXFLAGS := -Wall -g -std=c++17 -I/usr/include/SDL2 -I./VideoDecoder -I./sdl $(PKG_FFMPEG_CFLAGS)
+LDFLAGS := -lSDL2 $(PKG_FFMPEG_LDFLAGS)
+
 
 # 指定根目录列表（你想编译的源码根目录）
 DIRS := main VideoDecoder sdl

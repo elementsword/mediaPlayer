@@ -38,5 +38,7 @@ private:
     int videoStreamIndex; // 视频流在媒体文件中的索引，用于区分多个流（视频/音频/字幕）
 
     AVPacket *packet; // 压缩数据包，表示读取的一帧视频或音频数据（未解码前的压缩形式）
+
+    std::string url;
 };
 #endif // SDL_RENDERER_H

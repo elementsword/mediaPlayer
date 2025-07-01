@@ -9,12 +9,10 @@ VideoDecoder::~VideoDecoder()
 
 bool VideoDecoder::open(const std::string &url)
 {
-    std::cout << "Before open_input, formatCtx = " << formatCtx << std::endl;
     // 打开媒体文件（如 .mp4、.ts 等），并初始化 AVFormatContext 结构体
-    if (avformat_open_input(&formatCtx, url.c_str(), nullptr, nullptr) < 0)
+    if (avformat_open_input(&formatCtx, url.c_str(), nullptr, nullptr))
     {
-        std::cerr << "Failed to open input file: " << url << std::endl;
-        return false;
+        std::cerr << "Failed to open" << url << std::endl;
     }
 
     // 读取媒体文件的流信息（如有多少条流、每条流的编码参数等），填充 formatCtx->streams
@@ -25,9 +23,9 @@ bool VideoDecoder::open(const std::string &url)
     }
 
     // 遍历所有流，找到类型为视频（AVMEDIA_TYPE_VIDEO）的那一条流，并记录其索引
-    for (int i = 0; i < formatCtx->nb_streams; i++)
+    for (int i = 0; i < this->formatCtx->nb_streams; i++)
     {
-        std::cout << formatCtx->streams[i]->codecpar->codec_type << std::endl;
+        std::cout << this->formatCtx->streams[i]->codecpar->codec_type << std::endl;
         if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStreamIndex = i;
@@ -131,6 +129,7 @@ AVPixelFormat VideoDecoder::getPixelFormat() const
 // 读到一帧
 bool VideoDecoder::readFrame(AVFrame *frame)
 {
+    frame = av_frame_alloc();
     int ret;
     // 先送包
     while ((ret = av_read_frame(formatCtx, packet)) >= 0)
@@ -138,7 +137,6 @@ bool VideoDecoder::readFrame(AVFrame *frame)
         if (packet->stream_index == videoStreamIndex)
         {
             ret = avcodec_send_packet(codecCtx, packet);
-            av_packet_unref(packet);
             if (ret < 0)
             {
                 std::cerr << "Error sending packet to decoder: " << ret << std::endl;
@@ -146,6 +144,7 @@ bool VideoDecoder::readFrame(AVFrame *frame)
             }
             // 尝试接收帧
             ret = avcodec_receive_frame(codecCtx, frame);
+            av_packet_unref(packet);
             if (ret == 0)
             {
                 return true; // 拿到一帧成功

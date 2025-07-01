@@ -5,7 +5,7 @@
 
 int main(int argc, char *argv[])
 {
-    std::string url = argv[1];
+    const std::string url = argv[1];
     std::cout << url << std::endl;
     VideoDecoder videodecoder;
     Sdl sdl;
