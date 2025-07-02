@@ -113,3 +113,27 @@ void Sdl::cleanup()
 Sdl::~Sdl()
 {
 }
+
+bool Sdl::processEvents()
+{
+    SDL_Event event;
+    // 一次视频
+
+    while (SDL_PollEvent(&event))
+    {
+        switch (event.type)
+        {
+        case SDL_QUIT:
+            return true;
+        case SDL_KEYDOWN:
+            if (event.key.keysym.sym == SDLK_SPACE)
+            {
+                paused = !paused;
+                SDL_SetWindowTitle(window, paused ? "SDL2-YUV播放器 已暂停" : "SDL2-YUV播放器 正在播放");
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}

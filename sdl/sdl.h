@@ -13,6 +13,9 @@ public:
     void renderFrame(uint8_t *data[3], int linesize[3]);
     bool handleEvents();
     void cleanup();
+    // 新增：处理事件，返回是否请求退出
+    bool processEvents();
+
     ~Sdl();
 
 private:
@@ -21,8 +24,9 @@ private:
     SDL_Texture *texture = nullptr;
     int width = 0;
     int height = 0;
-    //黑白
-    bool enableBw =false;
+    // 黑白
+    bool enableBw = false;
+    bool paused =false;
 };
 
 #endif
