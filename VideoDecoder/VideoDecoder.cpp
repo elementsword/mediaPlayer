@@ -129,7 +129,6 @@ AVPixelFormat VideoDecoder::getPixelFormat() const
 // 读到一帧
 bool VideoDecoder::readFrame(AVFrame *frame)
 {
-    frame = av_frame_alloc();
     int ret;
     // 先送包
     while ((ret = av_read_frame(formatCtx, packet)) >= 0)

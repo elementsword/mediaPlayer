@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        AVFrame *frame = nullptr;
+        AVFrame *frame = av_frame_alloc();
         videodecoder.readFrame(frame);
         sdl.renderFrame(frame->data, frame->linesize);
     }
