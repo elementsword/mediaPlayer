@@ -80,10 +80,6 @@ void Sdl::renderFrame(uint8_t *data[3], int linesize[3])
     // 实际显示到窗口
     SDL_RenderPresent(renderer);
 }
-bool Sdl::handleEvents()
-{
-    return true;
-}
 void Sdl::cleanup()
 {
     // 销毁纹理资源，释放显存
@@ -114,7 +110,7 @@ Sdl::~Sdl()
 {
 }
 
-bool Sdl::processEvents()
+void Sdl::processEvents(PlayerControl &control)
 {
     SDL_Event event;
     // 一次视频
@@ -124,12 +120,20 @@ bool Sdl::processEvents()
         switch (event.type)
         {
         case SDL_QUIT:
-            return true;
+            control.setState(PlayerState::Quit);
+            return;
         case SDL_KEYDOWN:
             if (event.key.keysym.sym == SDLK_SPACE)
             {
-                paused = !paused;
-                SDL_SetWindowTitle(window, paused ? "SDL2-YUV播放器 已暂停" : "SDL2-YUV播放器 正在播放");
+                if (control.getState() == PlayerState::Playing)
+                {
+                    control.setState(PlayerState::Paused);
+                }
+                else
+                {
+                    control.setState(PlayerState::Playing);
+                }
+                SDL_SetWindowTitle(window, (control.getState() == PlayerState::Playing) ? "SDL2-YUV播放器 正在播放" : "SDL2-YUV播放器 已暂停");
             }
             break;
         default:

@@ -2,6 +2,8 @@
 #define SDL_H
 #include <iostream>
 #include <fstream>
+#include "../PlayerControl/playercontrol.h"
+
 extern "C"
 {
 #include "SDL2/SDL.h"
@@ -11,10 +13,9 @@ class Sdl
 public:
     bool init(int w, int h, const std::string &title = "Video");
     void renderFrame(uint8_t *data[3], int linesize[3]);
-    bool handleEvents();
     void cleanup();
     // 新增：处理事件，返回是否请求退出
-    bool processEvents();
+    void processEvents(PlayerControl &control);
 
     ~Sdl();
 
