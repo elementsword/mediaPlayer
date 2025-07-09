@@ -2,7 +2,7 @@
 bool Sdl::init(int w, int h, const std::string &title)
 {
     // 初始化 SDL 视频子系统，如果失败返回 false
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO) != 0)
     {
         std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
         return false;
