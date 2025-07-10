@@ -16,7 +16,7 @@ public:
     int getSampleRate() const;              // 采样率
     int getChannels() const;                // 声道数
     AVSampleFormat getSampleFormat() const; // 音频样本格式
-    uint64_t AudioDecoder::getChannelLayout() const;
+    uint64_t getChannelLayout() const;
 
 private:
     AVFormatContext *formatCtx; // 媒体文件格式上下文，用于保存整个文件的封装格式信息（如 MP4、TS 等）
@@ -30,6 +30,8 @@ private:
     AVPacket *packet; // 压缩数据包，表示读取的一帧视频或音频数据（未解码前的压缩形式）
 
     SwrContext *swrCtx; // 用于音频重采样/格式转换
+
+    AVFrame *tmpFrame; 
     std::string url;
 };
 #endif // SDL_RENDERER_H

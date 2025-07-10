@@ -82,6 +82,22 @@ bool AudioDecoder::open(const std::string &url)
     // 保存找到的音频流指针，后续可以直接使用它
     audioStream = formatCtx->streams[audioStreamIndex];
 
+    swrCtx = swr_alloc();
+    if (!swrCtx)
+    {
+        std::cerr << "Failed to allocate SwrContext." << std::endl;
+        return false;
+    }
+    // 设置参数 进
+    av_opt_set_int(swrCtx, "in_channel_layout", getChannelLayout(), 0);
+    av_opt_set_int(swrCtx, "in_sample_rate", codecCtx->sample_rate, 0);
+    av_opt_set_sample_fmt(swrCtx, "in_sample_fmt", codecCtx->sample_fmt, 0);
+
+    // 出
+    av_opt_set_int(swrCtx, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
+    //
+    av_opt_set_int(swrCtx, "out_sample_rate", 44100, 0);
+    av_opt_set_sample_fmt(swrCtx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
     return true;
 }
 
@@ -94,6 +110,7 @@ bool AudioDecoder::readFrame(AVFrame *frame)
         if (packet->stream_index == audioStreamIndex)
         {
             ret = avcodec_send_packet(codecCtx, packet);
+            av_packet_unref(packet);
             if (ret < 0)
             {
                 std::cerr << "Error sending packet to decoder: " << ret << std::endl;
@@ -101,9 +118,26 @@ bool AudioDecoder::readFrame(AVFrame *frame)
             }
             // 尝试接收帧
             ret = avcodec_receive_frame(codecCtx, frame);
-            av_packet_unref(packet);
+
             if (ret == 0)
             {
+                // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
+                int convertedSamples = swr_convert(
+                    swrCtx,
+                    tmpFrame->data, tmpFrame->nb_samples,            // 输出数据和样本数
+                    (const uint8_t **)frame->data, frame->nb_samples // 输入数据和样本数
+                );
+
+                if (convertedSamples < 0)
+                {
+                    // 转换失败
+                    return false;
+                }
+
+                tmpFrame->nb_samples = convertedSamples;
+
+                av_frame_unref(frame);
+                av_frame_ref(frame, tmpFrame);
                 return true; // 拿到一帧成功
             }
             else if (ret == AVERROR(EAGAIN))

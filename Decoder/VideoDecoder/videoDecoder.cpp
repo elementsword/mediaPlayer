@@ -132,10 +132,10 @@ bool VideoDecoder::readFrame(AVFrame *frame)
                 if (swsCtx)
                 {
                     sws_scale(swsCtx, frame->data, frame->linesize, 0, codecCtx->height, tmpFrame->data, tmpFrame->linesize);
-                    
+
                     av_frame_unref(frame);
-                    //这是 FFmpeg 提供的一个**“引用计数拷贝”**函数
-                    av_frame_ref(frame,tmpFrame);
+                    // 这是 FFmpeg 提供的一个**“引用计数拷贝”**函数
+                    av_frame_ref(frame, tmpFrame);
                 }
 
                 return true; // 拿到一帧成功
@@ -195,6 +195,12 @@ void VideoDecoder::close()
     {
         avformat_close_input(&formatCtx); // 内部会释放并置空
         formatCtx = nullptr;
+    }
+    //转换器释放
+    if (swsCtx)
+    {
+        sws_freeContext(swsCtx);
+        swsCtx = nullptr;
     }
 
     // 清理其他状态
