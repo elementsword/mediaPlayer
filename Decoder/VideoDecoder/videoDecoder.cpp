@@ -1,6 +1,6 @@
 #include "videoDecoder.h"
 
-VideoDecoder::VideoDecoder() : formatCtx(nullptr), codecCtx(nullptr), videoStream(nullptr), videoStreamIndex(-1), packet(nullptr)
+VideoDecoder::VideoDecoder() : formatCtx(nullptr), codecCtx(nullptr), videoStream(nullptr), videoStreamIndex(-1), packet(nullptr), swsCtx(nullptr), tmpFrame(nullptr)
 {
 }
 VideoDecoder::~VideoDecoder()
@@ -80,16 +80,98 @@ bool VideoDecoder::open(const std::string &url)
     // 保存找到的视频流指针，后续可以直接使用它
     videoStream = formatCtx->streams[videoStreamIndex];
 
+    if (codecCtx->pix_fmt != AV_PIX_FMT_YUV420P)
+    {
+        // 创建 设置转换规则
+        swsCtx = sws_getContext(codecCtx->width, codecCtx->height, codecCtx->pix_fmt,
+                                codecCtx->width, codecCtx->height, AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr, nullptr, nullptr);
+
+        if (!swsCtx)
+        {
+            std::cerr << "Failed to create SwsContext." << std::endl;
+            return false;
+        }
+
+        tmpFrame = av_frame_alloc();
+        tmpFrame->format = AV_PIX_FMT_YUV420P;
+        tmpFrame->width = codecCtx->width;
+        tmpFrame->height = codecCtx->height;
+        // 申请缓冲区
+        if (av_frame_get_buffer(tmpFrame, 32) < 0)
+        {
+            std::cerr << "Failed to allocate buffer for converted frame." << std::endl;
+            return false;
+        }
+    }
+
     return true;
 }
 
-int VideoDecoder::getWidth() const
+// 读到一帧
+bool VideoDecoder::readFrame(AVFrame *frame)
 {
-    return codecCtx->width;
+    int ret;
+    // 先送包
+    while ((ret = av_read_frame(formatCtx, packet)) >= 0)
+    {
+        if (packet->stream_index == videoStreamIndex)
+        {
+            ret = avcodec_send_packet(codecCtx, packet);
+            av_packet_unref(packet);
+            if (ret < 0)
+            {
+                std::cerr << "Error sending packet to decoder: " << ret << std::endl;
+                return false;
+            }
+            // 尝试接收帧
+            ret = avcodec_receive_frame(codecCtx, frame);
+
+            if (ret == 0)
+            {
+
+                if (swsCtx)
+                {
+                    sws_scale(swsCtx, frame->data, frame->linesize, 0, codecCtx->height, tmpFrame->data, tmpFrame->linesize);
+                    
+                    av_frame_unref(frame);
+                    //这是 FFmpeg 提供的一个**“引用计数拷贝”**函数
+                    av_frame_ref(frame,tmpFrame);
+                }
+
+                return true; // 拿到一帧成功
+            }
+            else if (ret == AVERROR(EAGAIN))
+            {
+                continue; // 需要更多包，继续读取
+            }
+            else if (ret == AVERROR_EOF)
+            {
+                return false; // 解码完毕
+            }
+            else
+            {
+                std::cerr << "Error decoding frame: " << ret << std::endl;
+                return false;
+            }
+        }
+        else
+        {
+            av_packet_unref(packet);
+        }
+    }
+    return false; // 读取结束或失败
 }
-int VideoDecoder::getHeight() const
+
+AVCodecContext *VideoDecoder::context() const
 {
-    return codecCtx->height;
+    if (codecCtx)
+    {
+        return codecCtx;
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 void VideoDecoder::close()
@@ -120,63 +202,17 @@ void VideoDecoder::close()
     videoStreamIndex = -1;
 }
 
+int VideoDecoder::getWidth() const
+{
+    return codecCtx->width;
+}
+int VideoDecoder::getHeight() const
+{
+    return codecCtx->height;
+}
+
 // 获取当前视频的像素格式
 AVPixelFormat VideoDecoder::getPixelFormat() const
 {
     return codecCtx ? codecCtx->pix_fmt : AV_PIX_FMT_NONE;
-}
-
-// 读到一帧
-bool VideoDecoder::readFrame(AVFrame *frame)
-{
-    int ret;
-    // 先送包
-    while ((ret = av_read_frame(formatCtx, packet)) >= 0)
-    {
-        if (packet->stream_index == videoStreamIndex)
-        {
-            ret = avcodec_send_packet(codecCtx, packet);
-            if (ret < 0)
-            {
-                std::cerr << "Error sending packet to decoder: " << ret << std::endl;
-                return false;
-            }
-            // 尝试接收帧
-            ret = avcodec_receive_frame(codecCtx, frame);
-            av_packet_unref(packet);
-            if (ret == 0)
-            {
-                return true; // 拿到一帧成功
-            }
-            else if (ret == AVERROR(EAGAIN))
-            {
-                continue; // 需要更多包，继续读取
-            }
-            else if (ret == AVERROR_EOF)
-            {
-                return false; // 解码完毕
-            }
-            else
-            {
-                std::cerr << "Error decoding frame: " << ret << std::endl;
-                return false;
-            }
-        }
-        else
-        {
-            av_packet_unref(packet);
-        }
-    }
-    return false; // 读取结束或失败
-}
-AVCodecContext *VideoDecoder::context() const
-{
-    if (codecCtx)
-    {
-        return codecCtx;
-    }
-    else
-    {
-        return nullptr;
-    }
 }
