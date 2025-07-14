@@ -1,13 +1,6 @@
 #include "sdl.h"
-bool Sdl::init(int w, int h, const std::string &title)
+bool Sdl::initVideo(int w, int h, const std::string &title)
 {
-    // 初始化 SDL 视频子系统，如果失败返回 false
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO) != 0)
-    {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        return false;
-    }
-
     // 保存视频宽高
     width = w;
     height = h;
@@ -45,6 +38,63 @@ bool Sdl::init(int w, int h, const std::string &title)
     // 初始化成功
     return true;
 }
+
+bool Sdl::initAudio(int sampleRate, int channels, int bytesPerSample)
+{
+    // 保存参数，供回调和时钟计算用
+    audioSampleRate = sampleRate;
+    audioChannels = channels;
+    audioBytesPerSample = bytesPerSample;
+    // 创建并清零一个 SDL_AudioSpec 结构体，用于配置音频设备参数
+    SDL_AudioSpec spec;
+    SDL_zero(spec);
+
+    spec.freq = sampleRate;             // 设置采样率（每秒采样数）
+    spec.channels = channels;           // 设置通道数（例如 2 表示立体声）
+    spec.format = AUDIO_S16SYS;         // 设置音频格式，这里是平台字节序的 16-bit 整型（匹配 AV_SAMPLE_FMT_S16）
+    spec.samples = 1024;                // 每次 SDL 回调请求的样本数（这个值影响延迟和稳定性）
+    spec.callback = Sdl::audioCallback; // 设置音频回调函数，由 SDL 自动定时调用
+    spec.userdata = this;               // 将当前对象指针传递给回调函数，以便访问成员变量
+
+    // 打开音频设备
+    if (SDL_OpenAudio(&spec, nullptr) < 0)
+    {
+        std::cerr << "SDL_OpenAudio failed: " << SDL_GetError() << std::endl;
+        return false;
+    }
+
+    // 启动音频播放
+    SDL_PauseAudio(0); // 0 表示取消暂停，开始播放
+    return true;
+}
+// 临时
+void Sdl::updateAudioBuffer(uint8_t *data, int size)
+{
+    std::lock_guard<std::mutex> lock(audioMutex);
+
+    // 如果之前的 buffer 还没消费完，先释放
+    if (audioBufferData)
+    {
+        av_free(audioBufferData);
+        audioBufferData = nullptr;
+        audioBufferSize = 0;
+    }
+
+    // 分配新的缓冲区并复制数据
+    audioBufferData = (uint8_t *)av_malloc(size);
+    if (audioBufferData)
+    {
+        memcpy(audioBufferData, data, size);
+        audioBufferSize = size;
+    }
+}
+
+double Sdl::getAudioClock() const
+{
+    std::lock_guard<std::mutex> lock(audioMutex);
+    return audioClock;
+}
+
 // 一帧
 void Sdl::renderFrame(uint8_t *data[3], int linesize[3])
 {
@@ -106,9 +156,6 @@ void Sdl::cleanup()
     // 关闭 SDL 系统（只需调用一次，通常在程序结束时）
     SDL_Quit();
 }
-Sdl::~Sdl()
-{
-}
 
 void Sdl::processEvents(PlayerControl &control)
 {
@@ -140,4 +187,55 @@ void Sdl::processEvents(PlayerControl &control)
             break;
         }
     }
+}
+
+Sdl::Sdl()
+{
+    // 初始化 SDL 视频子系统，如果失败返回 false
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
+    {
+        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+    }
+}
+
+Sdl::~Sdl()
+{
+}
+
+// 这是因为 audioCallback 是一个静态函数（或者说普通的 C 风格回调函数），它没有绑定到某个类实例，不能直接访问类的 this 指针。
+void Sdl::audioCallback(void *userdata, Uint8 *stream, int len)
+{
+    Sdl *self = static_cast<Sdl *>(userdata);
+    std::lock_guard<std::mutex> lock(self->audioMutex);
+
+    if (self->audioBufferSize <= 0 || !self->audioBufferData)
+    {
+        // 没数据就静音
+        SDL_memset(stream, 0, len);
+        return;
+    }
+    // copy
+    int copyLen = std::min(len, self->audioBufferSize);
+    SDL_memcpy(stream, self->audioBufferData, copyLen);
+
+    // 移动缓冲区指针和大小
+    self->audioBufferData += copyLen;
+    self->audioBufferSize -= copyLen;
+
+    // 更新音频时钟（秒）
+    // 计算此次复制的音频样本数：
+    // copyLen 是字节数，除以 (声道数 * 每个样本字节数) 得到样本数
+    int samples = copyLen / (self->audioChannels * self->audioBytesPerSample);
+    // 根据样本数和采样率计算此次音频数据对应的时间长度（秒）
+    // 音频时钟累加这段时间，方便音画同步
+    self->audioClock += (double)samples / self->audioSampleRate;
+
+    // 如果数据耗尽，释放（你也可以做成环形缓冲）
+    if (self->audioBufferSize <= 0)
+    {
+        av_free(self->audioBufferData);
+        self->audioBufferData = nullptr;
+        self->audioBufferSize = 0;
+    }
+    return;
 }

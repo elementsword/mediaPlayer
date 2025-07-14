@@ -88,6 +88,10 @@ bool AudioDecoder::open(const std::string &url)
         std::cerr << "Failed to allocate SwrContext." << std::endl;
         return false;
     }
+
+    std::cout << "Input channel layout: 0x" << std::hex << getChannelLayout() << std::dec << std::endl;
+    std::cout << "Input sample rate: " << codecCtx->sample_rate << std::endl;
+    std::cout << "Input sample format: " << av_get_sample_fmt_name(codecCtx->sample_fmt) << std::endl;
     // 设置参数 进
     av_opt_set_int(swrCtx, "in_channel_layout", getChannelLayout(), 0);
     av_opt_set_int(swrCtx, "in_sample_rate", codecCtx->sample_rate, 0);
@@ -98,7 +102,24 @@ bool AudioDecoder::open(const std::string &url)
     //
     av_opt_set_int(swrCtx, "out_sample_rate", 44100, 0);
     av_opt_set_sample_fmt(swrCtx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-    return true;
+
+    int ret = swr_init(swrCtx);
+    if (ret < 0)
+    {
+        char errbuf[128];
+        av_strerror(ret, errbuf, sizeof(errbuf));
+        std::cerr << "Failed to initialize SwrContext: " << errbuf << " (" << ret << ")" << std::endl;
+        swr_free(&swrCtx);
+        return false;
+    }
+    // // 初始化 swrCtx
+    // if (swr_init(swrCtx) < 0)
+    // {
+    //     std::cerr << "Failed to initialize SwrContext." << std::endl;
+    //     swr_free(&swrCtx);
+    //     return false;
+    // }
+    // return true;
 }
 
 bool AudioDecoder::readFrame(AVFrame *frame)

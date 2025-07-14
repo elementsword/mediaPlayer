@@ -9,25 +9,45 @@ int main(int argc, char *argv[])
     PlayerControl control;
     const std::string url = argv[1];
     std::cout << url << std::endl;
-    VideoDecoder *videodecoder=new VideoDecoder();
-    Decoder *decoder =videodecoder;
+    VideoDecoder *videodecoder = new VideoDecoder();
+    AudioDecoder *audiodecoder = new AudioDecoder();
+    Decoder *decoder1 = videodecoder;
+    Decoder *decoder2 = audiodecoder;
     Sdl sdl;
-    decoder->open(url);
+    decoder1->open(url);
+    decoder2->open(url);
     int width = videodecoder->getWidth();
     int height = videodecoder->getHeight();
-    sdl.init(width, height);
+
+    sdl.initVideo(width, height);
+    sdl.initAudio(audiodecoder->getSampleRate(), audiodecoder->getChannels(), av_get_bytes_per_sample(audiodecoder->getSampleFormat()));
     while (control.getState() != PlayerState::Quit)
     {
         if (control.getState() == PlayerState::Playing)
         {
-            AVFrame *frame = av_frame_alloc();
-            decoder->readFrame(frame);
-            sdl.renderFrame(frame->data, frame->linesize);
-            
+            // 1. 处理视频帧
+            AVFrame *videoFrame = av_frame_alloc();
+            if (videodecoder->readFrame(videoFrame)) // 读到视频帧才渲染
+            {
+                sdl.renderFrame(videoFrame->data, videoFrame->linesize);
+            }
+            av_frame_free(&videoFrame);
+
+            // 2. 处理音频帧
+            AVFrame *audioFrame = av_frame_alloc();
+            if (audiodecoder->readFrame(audioFrame)) // 读到音频帧才更新缓冲
+            {
+                // 音频数据是平面格式还是交错格式，data[0]通常就是音频PCM数据指针，size按你解码器决定
+                int dataSize = av_get_bytes_per_sample((AVSampleFormat)audiodecoder->getSampleFormat()) * audioFrame->nb_samples * audiodecoder->getChannels();
+
+                sdl.updateAudioBuffer(audioFrame->data[0], dataSize);
+            }
+            av_frame_free(&audioFrame);
         }
+
         sdl.processEvents(control);
-        SDL_Delay(40); // 等待10毫秒，控制播放速度
+        SDL_Delay(40); // 控制循环频率
     }
-    decoder->close();
+    decoder1->close();
     sdl.cleanup();
 }
