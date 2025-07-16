@@ -12,6 +12,23 @@ AudioDecoder::~AudioDecoder()
 bool AudioDecoder::open(const std::string &url)
 {
 
+    // 1. 分配 AVFrame 结构体
+    tmpFrame = av_frame_alloc();
+    if (!tmpFrame)
+    {
+        std::cerr << "Failed to allocate tmpFrame" << std::endl;
+        return false;
+    }
+    // 创建 AVChannelLayout
+    AVChannelLayout in_layout, out_layout;
+
+    // 初始化输入声道布局（以立体声为例）
+    av_channel_layout_default(&in_layout, 2); // 2 通道
+    av_channel_layout_from_mask(&in_layout, getChannelLayout());
+
+    // 初始化输出声道布局
+    av_channel_layout_default(&out_layout, 2);
+    av_channel_layout_from_mask(&out_layout, AV_CH_LAYOUT_STEREO);
     if (avformat_open_input(&formatCtx, url.c_str(), nullptr, nullptr))
     {
         std::cerr << "Failed to open" << url << std::endl;
@@ -92,16 +109,8 @@ bool AudioDecoder::open(const std::string &url)
     std::cout << "Input channel layout: 0x" << std::hex << getChannelLayout() << std::dec << std::endl;
     std::cout << "Input sample rate: " << codecCtx->sample_rate << std::endl;
     std::cout << "Input sample format: " << av_get_sample_fmt_name(codecCtx->sample_fmt) << std::endl;
-    // 设置参数 进
-    av_opt_set_int(swrCtx, "in_channel_layout", getChannelLayout(), 0);
-    av_opt_set_int(swrCtx, "in_sample_rate", codecCtx->sample_rate, 0);
-    av_opt_set_sample_fmt(swrCtx, "in_sample_fmt", codecCtx->sample_fmt, 0);
 
-    // 出
-    av_opt_set_int(swrCtx, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
-    //
-    av_opt_set_int(swrCtx, "out_sample_rate", 44100, 0);
-    av_opt_set_sample_fmt(swrCtx, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+    swr_alloc_set_opts2(&swrCtx, &out_layout, AV_SAMPLE_FMT_S16, 44100, &in_layout, codecCtx->sample_fmt, codecCtx->sample_rate, 0, NULL);
 
     int ret = swr_init(swrCtx);
     if (ret < 0)
@@ -112,14 +121,6 @@ bool AudioDecoder::open(const std::string &url)
         swr_free(&swrCtx);
         return false;
     }
-    // // 初始化 swrCtx
-    // if (swr_init(swrCtx) < 0)
-    // {
-    //     std::cerr << "Failed to initialize SwrContext." << std::endl;
-    //     swr_free(&swrCtx);
-    //     return false;
-    // }
-    // return true;
 }
 
 bool AudioDecoder::readFrame(AVFrame *frame)
@@ -142,6 +143,11 @@ bool AudioDecoder::readFrame(AVFrame *frame)
 
             if (ret == 0)
             {
+                if (!swrCtx)
+                {
+                    std::cerr << "swrCtx is NULL!" << std::endl;
+                    return false;
+                }
                 // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
                 int convertedSamples = swr_convert(
                     swrCtx,
