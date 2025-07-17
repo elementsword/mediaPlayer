@@ -4,6 +4,7 @@
 
 #include "../Decoder/decoder.h"
 
+
 class AudioDecoder : public Decoder
 {
 public:
@@ -31,7 +32,7 @@ private:
 
     SwrContext *swrCtx; // 用于音频重采样/格式转换
 
-    AVFrame *tmpFrame; 
+    AVFrame *tmpFrame;
     std::string url;
 };
-#endif // SDL_RENDERER_H
+#endif // AUDIODECODER_H

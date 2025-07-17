@@ -70,23 +70,7 @@ bool Sdl::initAudio(int sampleRate, int channels, int bytesPerSample)
 // 临时
 void Sdl::updateAudioBuffer(uint8_t *data, int size)
 {
-    std::lock_guard<std::mutex> lock(audioMutex);
-
-    // 如果之前的 buffer 还没消费完，先释放
-    if (audioBufferData)
-    {
-        av_free(audioBufferData);
-        audioBufferData = nullptr;
-        audioBufferSize = 0;
-    }
-
-    // 分配新的缓冲区并复制数据
-    audioBufferData = (uint8_t *)av_malloc(size);
-    if (audioBufferData)
-    {
-        memcpy(audioBufferData, data, size);
-        audioBufferSize = size;
-    }
+    audiobuffer.write(data, size);
 }
 
 double Sdl::getAudioClock() const
@@ -206,36 +190,17 @@ Sdl::~Sdl()
 void Sdl::audioCallback(void *userdata, Uint8 *stream, int len)
 {
     Sdl *self = static_cast<Sdl *>(userdata);
-    std::lock_guard<std::mutex> lock(self->audioMutex);
 
-    if (self->audioBufferSize <= 0 || !self->audioBufferData)
+    // 从 AudioBuffer 读取数据（非阻塞）
+    size_t readBytes = self->audiobuffer.read(stream, len);
+
+    if (readBytes < (size_t)len)
     {
-        // 没数据就静音
-        SDL_memset(stream, 0, len);
-        return;
+        // 不足时填充静音
+        SDL_memset(stream + readBytes, 0, len - readBytes);
     }
-    // copy
-    int copyLen = std::min(len, self->audioBufferSize);
-    SDL_memcpy(stream, self->audioBufferData, copyLen);
 
-    // 移动缓冲区指针和大小
-    self->audioBufferData += copyLen;
-    self->audioBufferSize -= copyLen;
-
-    // 更新音频时钟（秒）
-    // 计算此次复制的音频样本数：
-    // copyLen 是字节数，除以 (声道数 * 每个样本字节数) 得到样本数
-    int samples = copyLen / (self->audioChannels * self->audioBytesPerSample);
-    // 根据样本数和采样率计算此次音频数据对应的时间长度（秒）
-    // 音频时钟累加这段时间，方便音画同步
-    self->audioClock += (double)samples / self->audioSampleRate;
-
-    // 如果数据耗尽，释放（你也可以做成环形缓冲）
-    if (self->audioBufferSize <= 0)
-    {
-        av_free(self->audioBufferData);
-        self->audioBufferData = nullptr;
-        self->audioBufferSize = 0;
-    }
-    return;
+    // 更新音频时钟
+    int samples = readBytes / (self->audioChannels * self->audioBytesPerSample);
+    self->audioClock += static_cast<double>(samples) / self->audioSampleRate;
 }

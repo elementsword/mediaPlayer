@@ -4,6 +4,7 @@
 #include "../Decoder/AudioDecoder/audioDecoder.h"
 #include "../Decoder/VideoDecoder/videoDecoder.h"
 #include <fstream>
+
 int main(int argc, char *argv[])
 {
     PlayerControl control;

@@ -5,6 +5,7 @@
 #include <queue>
 #include <condition_variable>
 #include "../PlayerControl/playercontrol.h"
+#include "../DataStructure/audioBuffer/audioBuffer.h"
 
 extern "C"
 {
@@ -28,7 +29,7 @@ public:
     // 向音频缓冲区添加PCM数据（由解码线程调用）
     void updateAudioBuffer(uint8_t *data, int size);
 
-    double getAudioClock() const ;
+    double getAudioClock() const;
     void renderFrame(uint8_t *data[3], int linesize[3]);
     // 获取当前音频时钟
 
@@ -53,6 +54,7 @@ private:
 
     // 音频相关
     uint8_t *audioBufferData = nullptr; // 指向PCM数据
+    uint8_t *audioBufferPos = nullptr;  // 指向当前位置
     int audioBufferSize = 0;            // 剩余PCM字节数
     double audioClock = 0;              // 当前音频播放时间（秒）
     int audioSampleRate = 0;
@@ -65,7 +67,8 @@ private:
     std::mutex videoMutex;
     std::condition_variable videoCond;
     const size_t maxVideoQueueSize = 20; // 可调节
-    mutable std::mutex audioMutex;               // 保护 audioBufferData 和 audioBufferSize 的线程安全
+    mutable std::mutex audioMutex;       // 保护 audioBufferData 和 audioBufferSize 的线程安全
+    AudioBuffer audiobuffer;
 };
 
 #endif
