@@ -148,6 +148,29 @@ bool AudioDecoder::readFrame(AVFrame *frame)
                     std::cerr << "swrCtx is NULL!" << std::endl;
                     return false;
                 }
+
+                // 1. 计算输出缓冲区最大容量（样本数）
+                int64_t delay = swr_get_delay(swrCtx, codecCtx->sample_rate);
+                int max_output_samples = av_rescale_rnd(delay + frame->nb_samples,
+                                                        codecCtx->sample_rate,
+                                                        codecCtx->sample_rate,
+                                                        AV_ROUND_UP);
+
+                av_frame_make_writable(tmpFrame);
+                // 2. 设置 tmpFrame 参数
+
+                // 初始化输出声道布局
+                av_channel_layout_default(&tmpFrame->ch_layout, 2);
+                av_channel_layout_from_mask(&tmpFrame->ch_layout, AV_CH_LAYOUT_STEREO);
+                tmpFrame->format = AV_SAMPLE_FMT_S16; // 比如 AV_SAMPLE_FMT_S16
+                tmpFrame->sample_rate = codecCtx->sample_rate;
+                tmpFrame->nb_samples = max_output_samples;
+                std::cout << max_output_samples << std::endl;
+                if (av_frame_get_buffer(tmpFrame, 0) < 0)
+                {
+                    std::cerr << "Failed to allocate tmpFrame buffer" << std::endl;
+                    return false;
+                }
                 // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
                 int convertedSamples = swr_convert(
                     swrCtx,

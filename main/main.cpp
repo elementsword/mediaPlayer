@@ -39,7 +39,13 @@ int main(int argc, char *argv[])
             if (audiodecoder->readFrame(audioFrame)) // 读到音频帧才更新缓冲
             {
                 // 音频数据是平面格式还是交错格式，data[0]通常就是音频PCM数据指针，size按你解码器决定
-                int dataSize = av_get_bytes_per_sample((AVSampleFormat)audiodecoder->getSampleFormat()) * audioFrame->nb_samples * audiodecoder->getChannels();
+                int dataSize = av_samples_get_buffer_size(
+                    nullptr,                            // linesize, 通常为 nullptr 即可
+                    audioFrame->ch_layout.nb_channels,  // 通道数（比如 2）
+                    audioFrame->nb_samples,             // 样本数（每通道）
+                    (AVSampleFormat)audioFrame->format, // 样本格式（如 AV_SAMPLE_FMT_S16）
+                    1                                   // 对齐方式，通常为1
+                );
 
                 sdl.updateAudioBuffer(audioFrame->data[0], dataSize);
             }
