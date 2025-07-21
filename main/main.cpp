@@ -38,6 +38,9 @@ int main(int argc, char *argv[])
             AVFrame *audioFrame = av_frame_alloc();
             if (audiodecoder->readFrame(audioFrame)) // 读到音频帧才更新缓冲
             {
+                std::cout << "audioFrame->format: " << av_get_sample_fmt_name((AVSampleFormat)audioFrame->format) << std::endl;
+                std::cout << "audioFrame->ch_layout.nb_channels: " << audioFrame->ch_layout.nb_channels << std::endl;
+                std::cout << "audioFrame->nb_samples: " << audioFrame->nb_samples << std::endl;
                 // 音频数据是平面格式还是交错格式，data[0]通常就是音频PCM数据指针，size按你解码器决定
                 int dataSize = av_samples_get_buffer_size(
                     nullptr,                            // linesize, 通常为 nullptr 即可
@@ -46,7 +49,7 @@ int main(int argc, char *argv[])
                     (AVSampleFormat)audioFrame->format, // 样本格式（如 AV_SAMPLE_FMT_S16）
                     1                                   // 对齐方式，通常为1
                 );
-
+                std::cout << dataSize << std::endl;
                 sdl.updateAudioBuffer(audioFrame->data[0], dataSize);
             }
             av_frame_free(&audioFrame);

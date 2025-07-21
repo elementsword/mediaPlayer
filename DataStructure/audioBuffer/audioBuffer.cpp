@@ -7,6 +7,7 @@ AudioBuffer::AudioBuffer()
 // 写入数据到缓冲区
 void AudioBuffer::write(const uint8_t *data, size_t size)
 {
+    
     std::lock_guard<std::mutex> lock(mutex);
     buffer.insert(buffer.end(), data, data + size);
     writePos += size;

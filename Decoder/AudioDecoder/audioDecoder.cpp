@@ -150,9 +150,9 @@ bool AudioDecoder::readFrame(AVFrame *frame)
                 }
 
                 // 1. 计算输出缓冲区最大容量（样本数）
-                int64_t delay = swr_get_delay(swrCtx, codecCtx->sample_rate);
+                int64_t delay = swr_get_delay(swrCtx, 44100);
                 int max_output_samples = av_rescale_rnd(delay + frame->nb_samples,
-                                                        codecCtx->sample_rate,
+                                                        44100,
                                                         codecCtx->sample_rate,
                                                         AV_ROUND_UP);
 
@@ -163,7 +163,7 @@ bool AudioDecoder::readFrame(AVFrame *frame)
                 av_channel_layout_default(&tmpFrame->ch_layout, 2);
                 av_channel_layout_from_mask(&tmpFrame->ch_layout, AV_CH_LAYOUT_STEREO);
                 tmpFrame->format = AV_SAMPLE_FMT_S16; // 比如 AV_SAMPLE_FMT_S16
-                tmpFrame->sample_rate = codecCtx->sample_rate;
+                tmpFrame->sample_rate = 44100;
                 tmpFrame->nb_samples = max_output_samples;
                 std::cout << max_output_samples << std::endl;
                 if (av_frame_get_buffer(tmpFrame, 0) < 0)
@@ -188,6 +188,7 @@ bool AudioDecoder::readFrame(AVFrame *frame)
 
                 av_frame_unref(frame);
                 av_frame_ref(frame, tmpFrame);
+                av_frame_unref(tmpFrame);
                 return true; // 拿到一帧成功
             }
             else if (ret == AVERROR(EAGAIN))
