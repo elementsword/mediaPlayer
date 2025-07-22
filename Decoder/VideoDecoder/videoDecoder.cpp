@@ -23,7 +23,7 @@ bool VideoDecoder::open(const std::string &url)
     }
 
     // 遍历所有流，找到类型为视频（AVMEDIA_TYPE_VIDEO）的那一条流，并记录其索引
-    for (int i = 0; i < this->formatCtx->nb_streams; i++)
+    for (uint i = 0; i < this->formatCtx->nb_streams; i++)
     {
         std::cout << this->formatCtx->streams[i]->codecpar->codec_type << std::endl;
         if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
@@ -110,6 +110,7 @@ bool VideoDecoder::open(const std::string &url)
 // 读到一帧
 bool VideoDecoder::readFrame(AVFrame *frame)
 {
+    av_frame_unref(frame);
     int ret;
     // 先送包
     while ((ret = av_read_frame(formatCtx, packet)) >= 0)
@@ -196,7 +197,7 @@ void VideoDecoder::close()
         avformat_close_input(&formatCtx); // 内部会释放并置空
         formatCtx = nullptr;
     }
-    //转换器释放
+    // 转换器释放
     if (swsCtx)
     {
         sws_freeContext(swsCtx);

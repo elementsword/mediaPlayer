@@ -203,4 +203,6 @@ void Sdl::audioCallback(void *userdata, Uint8 *stream, int len)
     // 更新音频时钟
     int samples = readBytes / (self->audioChannels * self->audioBytesPerSample);
     self->audioClock += static_cast<double>(samples) / self->audioSampleRate;
+    // 这里加打印
+    std::cout << "[audioCallback] Requested: " << len << ", Read: " << readBytes << std::endl;
 }

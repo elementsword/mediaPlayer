@@ -12,13 +12,6 @@ AudioDecoder::~AudioDecoder()
 bool AudioDecoder::open(const std::string &url)
 {
 
-    // 1. 分配 AVFrame 结构体
-    tmpFrame = av_frame_alloc();
-    if (!tmpFrame)
-    {
-        std::cerr << "Failed to allocate tmpFrame" << std::endl;
-        return false;
-    }
     // 创建 AVChannelLayout
     AVChannelLayout in_layout, out_layout;
 
@@ -42,7 +35,7 @@ bool AudioDecoder::open(const std::string &url)
     }
 
     // 遍历所有流，找到类型为视频（AVMEDIA_TYPE_AUDIO）的那一条流，并记录其索引
-    for (int i = 0; i < this->formatCtx->nb_streams; i++)
+    for (uint i = 0; i < this->formatCtx->nb_streams; i++)
     {
         std::cout << this->formatCtx->streams[i]->codecpar->codec_type << std::endl;
         if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
@@ -106,10 +99,6 @@ bool AudioDecoder::open(const std::string &url)
         return false;
     }
 
-    std::cout << "Input channel layout: 0x" << std::hex << getChannelLayout() << std::dec << std::endl;
-    std::cout << "Input sample rate: " << codecCtx->sample_rate << std::endl;
-    std::cout << "Input sample format: " << av_get_sample_fmt_name(codecCtx->sample_fmt) << std::endl;
-
     swr_alloc_set_opts2(&swrCtx, &out_layout, AV_SAMPLE_FMT_S16, 44100, &in_layout, codecCtx->sample_fmt, codecCtx->sample_rate, 0, NULL);
 
     int ret = swr_init(swrCtx);
@@ -121,10 +110,13 @@ bool AudioDecoder::open(const std::string &url)
         swr_free(&swrCtx);
         return false;
     }
+    return true;
 }
 
 bool AudioDecoder::readFrame(AVFrame *frame)
 {
+    av_frame_unref(tmpFrame);
+    av_frame_unref(frame);
     int ret;
     // 先送包
     while ((ret = av_read_frame(formatCtx, packet)) >= 0)
@@ -140,7 +132,6 @@ bool AudioDecoder::readFrame(AVFrame *frame)
             }
             // 尝试接收帧
             ret = avcodec_receive_frame(codecCtx, frame);
-
             if (ret == 0)
             {
                 if (!swrCtx)
@@ -156,21 +147,12 @@ bool AudioDecoder::readFrame(AVFrame *frame)
                                                         codecCtx->sample_rate,
                                                         AV_ROUND_UP);
 
-                av_frame_make_writable(tmpFrame);
                 // 2. 设置 tmpFrame 参数
-
-                // 初始化输出声道布局
-                av_channel_layout_default(&tmpFrame->ch_layout, 2);
-                av_channel_layout_from_mask(&tmpFrame->ch_layout, AV_CH_LAYOUT_STEREO);
-                tmpFrame->format = AV_SAMPLE_FMT_S16; // 比如 AV_SAMPLE_FMT_S16
-                tmpFrame->sample_rate = 44100;
-                tmpFrame->nb_samples = max_output_samples;
-                std::cout << max_output_samples << std::endl;
-                if (av_frame_get_buffer(tmpFrame, 0) < 0)
+                if (!initTmpFrame(&tmpFrame, AV_SAMPLE_FMT_S16, 44100, 2, max_output_samples))
                 {
-                    std::cerr << "Failed to allocate tmpFrame buffer" << std::endl;
                     return false;
                 }
+
                 // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
                 int convertedSamples = swr_convert(
                     swrCtx,
@@ -185,10 +167,8 @@ bool AudioDecoder::readFrame(AVFrame *frame)
                 }
 
                 tmpFrame->nb_samples = convertedSamples;
-
                 av_frame_unref(frame);
                 av_frame_ref(frame, tmpFrame);
-                av_frame_unref(tmpFrame);
                 return true; // 拿到一帧成功
             }
             else if (ret == AVERROR(EAGAIN))
@@ -263,6 +243,7 @@ int AudioDecoder::getChannels() const
     {
         return codecCtx->ch_layout.nb_channels;
     }
+    return -1;
 }
 AVSampleFormat AudioDecoder::getSampleFormat() const
 {
@@ -278,4 +259,37 @@ uint64_t AudioDecoder::getChannelLayout() const
                    : 0;
     }
     return 0; // 返回 0 表示未知或非标准布局
+}
+
+// 重置initframe
+bool AudioDecoder::initTmpFrame(AVFrame **tmpFrame, AVSampleFormat sampleFmt,
+                                int sampleRate,
+                                int nbChannels,
+                                int nbSamples)
+{
+    // 第一次
+    if (!*tmpFrame)
+    {
+        *tmpFrame = av_frame_alloc();
+        // 空
+        if (!*tmpFrame)
+        {
+            std::cerr << "Failed to allocate tmpFrame" << std::endl;
+            return false;
+        }
+    }
+    (*tmpFrame)->format = sampleFmt;
+    (*tmpFrame)->sample_rate = sampleRate;
+    (*tmpFrame)->nb_samples = nbSamples;
+    // 设置声道布局
+    av_channel_layout_default(&(*tmpFrame)->ch_layout, nbChannels);
+    // 分配 buffer（如果之前没有或者 nb_samples 变了）
+    if (av_frame_get_buffer(*tmpFrame, 0) < 0)
+    {
+        std::cerr << "Failed to allocate tmpFrame buffer" << std::endl;
+        return false;
+    }
+
+    
+    return true;
 }

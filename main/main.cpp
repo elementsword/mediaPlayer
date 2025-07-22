@@ -4,9 +4,12 @@
 #include "../Decoder/AudioDecoder/audioDecoder.h"
 #include "../Decoder/VideoDecoder/videoDecoder.h"
 #include <fstream>
-
+const int outSampleRate = 44100;
+const int outChannels = 2;
+const AVSampleFormat outFormat = AV_SAMPLE_FMT_S16;
 int main(int argc, char *argv[])
 {
+    FILE *pcmFile = fopen("output.pcm", "wb");
     PlayerControl control;
     const std::string url = argv[1];
     std::cout << url << std::endl;
@@ -19,23 +22,22 @@ int main(int argc, char *argv[])
     decoder2->open(url);
     int width = videodecoder->getWidth();
     int height = videodecoder->getHeight();
-
+    AVFrame *videoFrame = av_frame_alloc();
+    AVFrame *audioFrame = av_frame_alloc();
     sdl.initVideo(width, height);
-    sdl.initAudio(audiodecoder->getSampleRate(), audiodecoder->getChannels(), av_get_bytes_per_sample(audiodecoder->getSampleFormat()));
+    sdl.initAudio(outSampleRate, outChannels, outFormat);
     while (control.getState() != PlayerState::Quit)
     {
         if (control.getState() == PlayerState::Playing)
         {
             // 1. 处理视频帧
-            AVFrame *videoFrame = av_frame_alloc();
-            if (videodecoder->readFrame(videoFrame)) // 读到视频帧才渲染
-            {
-                sdl.renderFrame(videoFrame->data, videoFrame->linesize);
-            }
-            av_frame_free(&videoFrame);
 
+            // if (videodecoder->readFrame(videoFrame)) // 读到视频帧才渲染
+            // {
+            //     sdl.renderFrame(videoFrame->data, videoFrame->linesize);
+            // }
             // 2. 处理音频帧
-            AVFrame *audioFrame = av_frame_alloc();
+
             if (audiodecoder->readFrame(audioFrame)) // 读到音频帧才更新缓冲
             {
                 std::cout << "audioFrame->format: " << av_get_sample_fmt_name((AVSampleFormat)audioFrame->format) << std::endl;
@@ -51,13 +53,16 @@ int main(int argc, char *argv[])
                 );
                 std::cout << dataSize << std::endl;
                 sdl.updateAudioBuffer(audioFrame->data[0], dataSize);
+                fwrite(audioFrame->data[0], 1, dataSize, pcmFile);
             }
-            av_frame_free(&audioFrame);
         }
 
         sdl.processEvents(control);
         SDL_Delay(40); // 控制循环频率
     }
+    av_frame_free(&videoFrame);
+    av_frame_free(&audioFrame);
     decoder1->close();
     sdl.cleanup();
+    fclose(pcmFile);
 }

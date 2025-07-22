@@ -4,7 +4,6 @@
 
 #include "../Decoder/decoder.h"
 
-
 class AudioDecoder : public Decoder
 {
 public:
@@ -18,6 +17,11 @@ public:
     int getChannels() const;                // 声道数
     AVSampleFormat getSampleFormat() const; // 音频样本格式
     uint64_t getChannelLayout() const;
+    bool initTmpFrame(AVFrame **tmpFrame,
+                      AVSampleFormat sampleFmt,
+                      int sampleRate,
+                      int nbChannels,
+                      int nbSamples); // 重置initframe
 
 private:
     AVFormatContext *formatCtx; // 媒体文件格式上下文，用于保存整个文件的封装格式信息（如 MP4、TS 等）
