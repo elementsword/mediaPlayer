@@ -6,9 +6,14 @@
 #include <fstream>
 const int outSampleRate = 44100;
 const int outChannels = 2;
-const AVSampleFormat outFormat = AV_SAMPLE_FMT_S16;
+const int outBytesPerSample = av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
 int main(int argc, char *argv[])
 {
+    if (argc < 2)
+    {
+        std::cout << "请输入播放的视频地址:" << std::endl;
+        return -1;
+    }
     FILE *pcmFile = fopen("output.pcm", "wb");
     PlayerControl control;
     const std::string url = argv[1];
@@ -25,7 +30,7 @@ int main(int argc, char *argv[])
     AVFrame *videoFrame = av_frame_alloc();
     AVFrame *audioFrame = av_frame_alloc();
     sdl.initVideo(width, height);
-    sdl.initAudio(outSampleRate, outChannels, outFormat);
+    sdl.initAudio(outSampleRate, outChannels, AV_SAMPLE_FMT_S16);
     while (control.getState() != PlayerState::Quit)
     {
         if (control.getState() == PlayerState::Playing)
@@ -53,12 +58,12 @@ int main(int argc, char *argv[])
                 );
                 std::cout << dataSize << std::endl;
                 sdl.updateAudioBuffer(audioFrame->data[0], dataSize);
-                fwrite(audioFrame->data[0], 1, dataSize, pcmFile);
+                // fwrite(audioFrame->data[0], 1, dataSize, pcmFile);
             }
         }
 
         sdl.processEvents(control);
-        SDL_Delay(40); // 控制循环频率
+        //SDL_Delay(40); // 控制循环频率
     }
     av_frame_free(&videoFrame);
     av_frame_free(&audioFrame);

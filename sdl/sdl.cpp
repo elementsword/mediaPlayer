@@ -56,6 +56,9 @@ bool Sdl::initAudio(int sampleRate, int channels, int bytesPerSample)
     spec.callback = Sdl::audioCallback; // 设置音频回调函数，由 SDL 自动定时调用
     spec.userdata = this;               // 将当前对象指针传递给回调函数，以便访问成员变量
 
+    std::cout << "SDL Audio Init: freq=" << sampleRate
+              << ", channels=" << channels
+              << ", bytesPerSample=" << bytesPerSample << std::endl;
     // 打开音频设备
     if (SDL_OpenAudio(&spec, nullptr) < 0)
     {
@@ -67,6 +70,7 @@ bool Sdl::initAudio(int sampleRate, int channels, int bytesPerSample)
     SDL_PauseAudio(0); // 0 表示取消暂停，开始播放
     return true;
 }
+
 // 临时
 void Sdl::updateAudioBuffer(uint8_t *data, int size)
 {

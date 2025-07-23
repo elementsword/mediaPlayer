@@ -7,9 +7,18 @@ AudioBuffer::AudioBuffer()
 // 写入数据到缓冲区
 void AudioBuffer::write(const uint8_t *data, size_t size)
 {
-    
+
     std::lock_guard<std::mutex> lock(mutex);
-    buffer.insert(buffer.end(), data, data + size);
+
+    if (buffer.size() < writePos + size)
+    {
+        size_t newSize = buffer.size() == 0 ? writePos + size : buffer.size() * 2;
+        if (newSize < writePos + size)
+            newSize = writePos + size;
+        buffer.resize(newSize);
+    }
+    // 直接覆盖数据
+    std::copy(data, data + size, buffer.begin() + writePos);
     writePos += size;
 }
 
@@ -30,7 +39,6 @@ size_t AudioBuffer::read(uint8_t *out, size_t size)
         // 如果数据都读完了，清理空间
         if (readPos == writePos)
         {
-            buffer.clear();
             readPos = writePos = 0;
         }
     }
@@ -49,6 +57,5 @@ size_t AudioBuffer::size() const
 void AudioBuffer::clear()
 {
     std::lock_guard<std::mutex> lock(mutex);
-    buffer.clear();
     writePos = readPos = 0;
 }
