@@ -7,7 +7,7 @@ LDFLAGS := -lSDL2 $(PKG_FFMPEG_LDFLAGS)
 
 
 # 指定根目录列表（你想编译的源码根目录）
-DIRS := main Decoder sdl PlayerControl DataStructure
+DIRS := main Decoder sdl PlayerControl DataStructure Demuxer
 
 # 利用shell和find，递归查找这些目录里的所有cpp文件
 SRCS := $(foreach dir,$(DIRS),$(shell find $(dir) -type f -name "*.cpp"))

@@ -14,10 +14,10 @@ int main(int argc, char *argv[])
         std::cout << "请输入播放的视频地址:" << std::endl;
         return -1;
     }
-    FILE *pcmFile = fopen("output.pcm", "wb");
     PlayerControl control;
     const std::string url = argv[1];
     std::cout << url << std::endl;
+
     VideoDecoder *videodecoder = new VideoDecoder();
     AudioDecoder *audiodecoder = new AudioDecoder();
     Decoder *decoder1 = videodecoder;
@@ -63,11 +63,10 @@ int main(int argc, char *argv[])
         }
 
         sdl.processEvents(control);
-        //SDL_Delay(40); // 控制循环频率
+        // SDL_Delay(40); // 控制循环频率
     }
     av_frame_free(&videoFrame);
     av_frame_free(&audioFrame);
     decoder1->close();
     sdl.cleanup();
-    fclose(pcmFile);
 }
