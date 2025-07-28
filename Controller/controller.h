@@ -25,6 +25,8 @@ private:
     std::thread videoThread;
     std::atomic<bool> quitFlag;
 
+    bool audioThreadRunning = false;
+    bool videoThreadRunning = false;
     void audioLoop();
     void videoLoop();
 };

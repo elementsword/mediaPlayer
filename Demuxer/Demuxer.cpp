@@ -95,11 +95,11 @@ bool Demuxer::open(const std::string url)
     return true;
 }
 
-ThreadSafeQueue<AVPacket> &Demuxer::getAudioQueue()
+ThreadSafeQueue<AVPacket*> &Demuxer::getAudioQueue()
 {
     return audioPacketQueue;
 }
-ThreadSafeQueue<AVPacket> &Demuxer::getVideoQueue()
+ThreadSafeQueue<AVPacket*> &Demuxer::getVideoQueue()
 {
     return videoPacketQueue;
 }
@@ -146,11 +146,11 @@ void Demuxer::run()
 
         if (pkt.stream_index == videoStreamIndex)
         {
-            videoPacketQueue.push(pkt);
+            videoPacketQueue.push(&pkt);
         }
         else if (pkt.stream_index == audioStreamIndex)
         {
-            audioPacketQueue.push(pkt);
+            audioPacketQueue.push(&pkt);
         }
         else
         {

@@ -1,6 +1,6 @@
 #include "audioDecoder.h"
 
-AudioDecoder::AudioDecoder() : formatCtx(nullptr), codecCtx(nullptr), audioStream(nullptr), audioStreamIndex(-1), packet(nullptr), swrCtx(nullptr)
+AudioDecoder::AudioDecoder() : formatCtx(nullptr), codecCtx(nullptr), audioStream(nullptr), audioStreamIndex(-1), packet(nullptr), swrCtx(nullptr), frame(av_frame_alloc())
 {
 }
 
@@ -113,84 +113,54 @@ bool AudioDecoder::open(const std::string &url)
     return true;
 }
 
-bool AudioDecoder::readFrame(AVFrame *frame)
+AVFrame *AudioDecoder::decode(const AVPacket &pkt)
 {
-    av_frame_unref(tmpFrame);
     av_frame_unref(frame);
-    int ret;
-    // 先送包
-    while ((ret = av_read_frame(formatCtx, packet)) >= 0)
+    if (avcodec_send_packet(codecCtx, &pkt) < 0)
     {
-        if (packet->stream_index == audioStreamIndex)
-        {
-            ret = avcodec_send_packet(codecCtx, packet);
-            av_packet_unref(packet);
-            if (ret < 0)
-            {
-                std::cerr << "Error sending packet to decoder: " << ret << std::endl;
-                return false;
-            }
-            // 尝试接收帧
-            ret = avcodec_receive_frame(codecCtx, frame);
-            if (ret == 0)
-            {
-                if (!swrCtx)
-                {
-                    std::cerr << "swrCtx is NULL!" << std::endl;
-                    return false;
-                }
-
-                // 1. 计算输出缓冲区最大容量（样本数）
-                int64_t delay = swr_get_delay(swrCtx, 44100);
-                int max_output_samples = av_rescale_rnd(delay + frame->nb_samples,
-                                                        44100,
-                                                        codecCtx->sample_rate,
-                                                        AV_ROUND_UP);
-
-                // 2. 设置 tmpFrame 参数
-                if (!initTmpFrame(&tmpFrame, AV_SAMPLE_FMT_S16, 44100, 2, max_output_samples))
-                {
-                    return false;
-                }
-
-                // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
-                int convertedSamples = swr_convert(
-                    swrCtx,
-                    tmpFrame->data, tmpFrame->nb_samples,            // 输出数据和样本数
-                    (const uint8_t **)frame->data, frame->nb_samples // 输入数据和样本数
-                );
-
-                if (convertedSamples < 0)
-                {
-                    // 转换失败
-                    return false;
-                }
-
-                tmpFrame->nb_samples = convertedSamples;
-                av_frame_unref(frame);
-                av_frame_ref(frame, tmpFrame);
-                return true; // 拿到一帧成功
-            }
-            else if (ret == AVERROR(EAGAIN))
-            {
-                continue; // 需要更多包，继续读取
-            }
-            else if (ret == AVERROR_EOF)
-            {
-                return false; // 解码完毕
-            }
-            else
-            {
-                std::cerr << "Error decoding frame: " << ret << std::endl;
-                return false;
-            }
-        }
-        else
-        {
-            av_packet_unref(packet);
-        }
+        return nullptr;
     }
-    return false; // 读取结束或失败
+
+    if (avcodec_receive_frame(codecCtx, frame) < 0)
+    {
+        return nullptr;
+    }
+
+    if (!swrCtx)
+    {
+        std::cerr << "swrCtx is NULL!" << std::endl;
+        return nullptr;
+    }
+
+    // 1. 计算输出缓冲区最大容量（样本数）
+    int64_t delay = swr_get_delay(swrCtx, 44100);
+    int max_output_samples = av_rescale_rnd(delay + frame->nb_samples,
+                                            44100,
+                                            codecCtx->sample_rate,
+                                            AV_ROUND_UP);
+
+    // 2. 设置 convertedFrame 参数
+    if (!initConvertedFrame(&convertedFrame, AV_SAMPLE_FMT_S16, 44100, 2, max_output_samples))
+    {
+        return nullptr;
+    }
+
+    // 计算目标输出样本数（有些场景需要 swr_get_delay + av_rescale）
+    int convertedSamples = swr_convert(
+        swrCtx,
+        convertedFrame->data, convertedFrame->nb_samples, // 输出数据和样本数
+        (const uint8_t **)frame->data, frame->nb_samples  // 输入数据和样本数
+    );
+
+    if (convertedSamples < 0)
+    {
+        // 转换失败
+        return nullptr;
+    }
+
+    convertedFrame->nb_samples = convertedSamples;
+    av_frame_unref(frame);
+    return convertedFrame; // 拿到一帧成功
 }
 
 AVCodecContext *AudioDecoder::context() const
@@ -262,34 +232,31 @@ uint64_t AudioDecoder::getChannelLayout() const
 }
 
 // 重置initframe
-bool AudioDecoder::initTmpFrame(AVFrame **tmpFrame, AVSampleFormat sampleFmt,
-                                int sampleRate,
-                                int nbChannels,
-                                int nbSamples)
+bool AudioDecoder::initConvertedFrame(AVFrame **convertFrame, AVSampleFormat sampleFmt,
+                                      int sampleRate,
+                                      int nbChannels,
+                                      int nbSamples)
 {
-    // 第一次
-    if (!*tmpFrame)
+    *convertFrame = av_frame_alloc();
+    // 空
+    if (!*convertFrame)
     {
-        *tmpFrame = av_frame_alloc();
-        // 空
-        if (!*tmpFrame)
-        {
-            std::cerr << "Failed to allocate tmpFrame" << std::endl;
-            return false;
-        }
-    }
-    (*tmpFrame)->format = sampleFmt;
-    (*tmpFrame)->sample_rate = sampleRate;
-    (*tmpFrame)->nb_samples = nbSamples;
-    // 设置声道布局
-    av_channel_layout_default(&(*tmpFrame)->ch_layout, nbChannels);
-    // 分配 buffer（如果之前没有或者 nb_samples 变了）
-    if (av_frame_get_buffer(*tmpFrame, 0) < 0)
-    {
-        std::cerr << "Failed to allocate tmpFrame buffer" << std::endl;
+        std::cerr << "Failed to allocate convertFrame" << std::endl;
         return false;
     }
 
-    
+    (*convertFrame)->format = sampleFmt;
+    (*convertFrame)->sample_rate = sampleRate;
+    (*convertFrame)->nb_samples = nbSamples;
+    // 设置声道布局
+    av_channel_layout_default(&(*convertFrame)->ch_layout, nbChannels);
+    // 分配 buffer（如果之前没有或者 nb_samples 变了）
+    if (av_frame_get_buffer(*convertFrame, 0) < 0)
+    {
+        std::cerr << "Failed to allocate tmpFrame buffer" << std::endl;
+        av_frame_free(convertFrame); // ✅ 释放已分配但未完全初始化的 frame
+        return false;
+    }
+
     return true;
 }

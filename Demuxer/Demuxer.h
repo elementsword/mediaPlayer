@@ -31,11 +31,11 @@ public:
     void stop();
     bool open(const std::string url);
 
-    ThreadSafeQueue<AVPacket> &getAudioQueue();
-    ThreadSafeQueue<AVPacket> &getVideoQueue();
+    ThreadSafeQueue<AVPacket *> &getAudioQueue();
+    ThreadSafeQueue<AVPacket *> &getVideoQueue();
     int getAudioStreamIndex() const;
     int getVideoStreamIndex() const;
-    bool isOpened() const ;
+    bool isOpened() const;
     MediaType getMediaType() const;
 
 private:
@@ -45,7 +45,7 @@ private:
     int videoStreamIndex;
     std::atomic<bool> quitFlag;
     std::thread demuxThread;
-    ThreadSafeQueue<AVPacket> audioPacketQueue;
-    ThreadSafeQueue<AVPacket> videoPacketQueue;
+    ThreadSafeQueue<AVPacket *> audioPacketQueue;
+    ThreadSafeQueue<AVPacket *> videoPacketQueue;
 };
 #endif

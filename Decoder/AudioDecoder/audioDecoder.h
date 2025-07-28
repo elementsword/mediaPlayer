@@ -4,24 +4,24 @@
 
 #include "../Decoder/decoder.h"
 
-class AudioDecoder : public Decoder
+class AudioDecoder
 {
 public:
     AudioDecoder();
     ~AudioDecoder();
-    bool open(const std::string &url) override;
-    bool readFrame(AVFrame *frame) override;  // 读取并解码一帧
-    AVCodecContext *context() const override; // context
-    void close() override;
+    bool open(const std::string &url);
+    AVFrame *decode(const AVPacket &pkt); // 读取并解码一帧
+    AVCodecContext *context() const;      // context
+    void close();
     int getSampleRate() const;              // 采样率
     int getChannels() const;                // 声道数
     AVSampleFormat getSampleFormat() const; // 音频样本格式
     uint64_t getChannelLayout() const;
-    bool initTmpFrame(AVFrame **tmpFrame,
-                      AVSampleFormat sampleFmt,
-                      int sampleRate,
-                      int nbChannels,
-                      int nbSamples); // 重置initframe
+    bool initConvertedFrame(AVFrame **convertFrame,
+                            AVSampleFormat sampleFmt,
+                            int sampleRate,
+                            int nbChannels,
+                            int nbSamples); // 初始化initframe
 
 private:
     AVFormatContext *formatCtx; // 媒体文件格式上下文，用于保存整个文件的封装格式信息（如 MP4、TS 等）
@@ -36,7 +36,9 @@ private:
 
     SwrContext *swrCtx; // 用于音频重采样/格式转换
 
-    AVFrame *tmpFrame;
+    AVFrame *convertedFrame;
+    AVFrame *frame;
     std::string url;
+    
 };
 #endif // AUDIODECODER_H

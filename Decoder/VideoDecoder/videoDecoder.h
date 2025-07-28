@@ -4,18 +4,22 @@
 
 #include "../Decoder/decoder.h"
 
-class VideoDecoder : public Decoder
+class VideoDecoder
 {
 public:
     VideoDecoder();
     ~VideoDecoder();
-    bool open(const std::string &url) override;
-    bool readFrame(AVFrame *frame) override; // 读取并解码一帧
-    AVCodecContext *context() const override;
-    void close() override;
+    bool open(const std::string &url) ;
+    AVFrame *decode(const AVPacket &pkt); // 读取并解码一帧
+    AVCodecContext *context() const ;
+    void close() ;
     int getWidth() const;
     int getHeight() const;
     AVPixelFormat getPixelFormat() const;
+    bool initConvertedFrame(AVFrame **convertFrame,
+                            AVPixelFormat pixFmt,
+                            int width,
+                            int height); // 初始化initframe
 
 private:
     AVFormatContext *formatCtx; // 媒体文件格式上下文，用于保存整个文件的封装格式信息（如 MP4、TS 等）
@@ -30,7 +34,9 @@ private:
 
     SwsContext *swsCtx = nullptr; // ⬅️ 色彩空间转换器
 
-    AVFrame *tmpFrame; 
+    AVFrame *convertedFrame;
+
+    AVFrame *frame;
 
     std::string url;
 };
