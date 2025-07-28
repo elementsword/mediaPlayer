@@ -1,6 +1,14 @@
 #ifndef DEMUXER_H
 #define DEMUXER_H
 
+// Demuxer.h
+enum class MediaType
+{
+    AudioOnly,
+    VideoOnly,
+    AudioVideo,
+    Unknown
+};
 #include <thread>
 #include <atomic>
 #include <iostream>
@@ -27,6 +35,8 @@ public:
     ThreadSafeQueue<AVPacket> &getVideoQueue();
     int getAudioStreamIndex() const;
     int getVideoStreamIndex() const;
+    bool isOpened() const ;
+    MediaType getMediaType() const;
 
 private:
     void run();
@@ -35,7 +45,6 @@ private:
     int videoStreamIndex;
     std::atomic<bool> quitFlag;
     std::thread demuxThread;
-
     ThreadSafeQueue<AVPacket> audioPacketQueue;
     ThreadSafeQueue<AVPacket> videoPacketQueue;
 };

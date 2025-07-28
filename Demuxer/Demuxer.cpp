@@ -19,7 +19,7 @@ Demuxer::~Demuxer()
     if (formatCtx)
     {
         avformat_close_input(&formatCtx); // 安全关闭输入文件
-        formatCtx = nullptr;                 // 避免悬空指针
+        formatCtx = nullptr;              // 避免悬空指针
     }
 }
 
@@ -31,16 +31,20 @@ void Demuxer::start()
 }
 void Demuxer::stop()
 {
-    quitFlag = false;
+    quitFlag = true;
     audioPacketQueue.stop();
     videoPacketQueue.stop();
 }
+
 bool Demuxer::open(const std::string url)
 {
+    videoStreamIndex = -1;
+    audioStreamIndex = -1;
     // 打开媒体文件（如 .mp4、.ts 等），并初始化 AVFormatContext 结构体
     if (avformat_open_input(&formatCtx, url.c_str(), nullptr, nullptr))
     {
         std::cerr << "Failed to open" << url << std::endl;
+        return false;
     }
 
     // 读取媒体文件的流信息（如有多少条流、每条流的编码参数等），填充 formatCtx->streams
@@ -68,6 +72,27 @@ bool Demuxer::open(const std::string url)
         std::cerr << "No video stream found." << std::endl;
         return false;
     }
+
+    // 遍历所有流，找到类型为音频（AVMEDIA_TYPE_AUDIO）的那一条流，并记录其索引
+    for (uint i = 0; i < this->formatCtx->nb_streams; i++)
+    {
+        std::cout << this->formatCtx->streams[i]->codecpar->codec_type << std::endl;
+        if (formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
+        {
+            audioStreamIndex = i;
+            std::cout << "找到了" << std::endl;
+            break;
+        }
+    }
+
+    // 如果找不到音频流，则报错返回
+    if (audioStreamIndex < 0)
+    {
+        std::cerr << "No audio stream found." << std::endl;
+        return false;
+    }
+
+    return true;
 }
 
 ThreadSafeQueue<AVPacket> &Demuxer::getAudioQueue()
@@ -85,4 +110,56 @@ int Demuxer::getAudioStreamIndex() const
 int Demuxer::getVideoStreamIndex() const
 {
     return videoStreamIndex;
+}
+
+bool Demuxer::isOpened() const
+{
+    return formatCtx != nullptr;
+}
+MediaType Demuxer::getMediaType() const
+{
+    bool hasVideo = videoStreamIndex >= 0;
+    bool hasAudio = audioStreamIndex >= 0;
+
+    if (hasVideo && hasAudio)
+        return MediaType::AudioVideo;
+    else if (hasVideo)
+        return MediaType::VideoOnly;
+    else if (hasAudio)
+        return MediaType::AudioOnly;
+    else
+        return MediaType::Unknown;
+}
+
+void Demuxer::run()
+{
+    AVPacket pkt = *av_packet_alloc();
+
+    while (!quitFlag)
+    {
+        int ret = av_read_frame(formatCtx, &pkt);
+        if (ret < 0)
+        {
+            // 读完或错误，退出循环
+            break;
+        }
+
+        if (pkt.stream_index == videoStreamIndex)
+        {
+            videoPacketQueue.push(pkt);
+        }
+        else if (pkt.stream_index == audioStreamIndex)
+        {
+            audioPacketQueue.push(pkt);
+        }
+        else
+        {
+            // 不是音频也不是视频，释放包
+            av_packet_unref(&pkt);
+        }
+    }
+
+    // 结束时停止队列，通知消费者
+    audioPacketQueue.stop();
+    videoPacketQueue.stop();
 }
