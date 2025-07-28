@@ -52,8 +52,7 @@ void Controller::audioLoop()
 
         if (frame)
         {
-            // 处理解码后帧，推入队列或者播放
-            // 记得管理frame生命周期，比如后续用完av_frame_free(&frame);
+            audioFrameQueue.push(frame);
         }
     }
 }
@@ -83,8 +82,53 @@ void Controller::videoLoop()
 
         if (frame)
         {
-            // 处理解码后帧，推入队列或者播放
-            // 记得管理frame生命周期，比如后续用完av_frame_free(&frame);
+            videoFrameQueue.push(frame);
         }
+    }
+}
+void Controller::videoRenderLoop()
+{
+    videoRenderRunning = true;
+    while (videoRenderRunning)
+    {
+        auto optFrame = videoFrameQueue.pop();
+        if (!optFrame.has_value())
+        {
+            // 队列停止且无数据，退出渲染循环
+            break;
+        }
+        AVFrame *frame = optFrame.value();
+
+        // 调用 SDL 渲染接口
+        sdl.renderFrame(frame->data, frame->linesize);
+
+        // 释放 AVFrame
+        av_frame_free(&frame);
+
+        // 控制帧率或者等待（如果需要）
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+void Controller::audioPlayLoop()
+{
+    audioPlayRunning = true;
+    while (audioPlayRunning)
+    {
+        auto optFrame = audioFrameQueue.pop();
+        if (!optFrame.has_value())
+        {
+            // 队列停止且无数据，退出音频播放循环
+            break;
+        }
+        AVFrame *frame = optFrame.value();
+
+        // 转换 AVFrame 中的 PCM 数据为 SDL 音频缓冲，写入 sdl 的 AudioBuffer
+        int dataSize = av_get_bytes_per_sample((AVSampleFormat)frame->format) * frame->nb_samples * frame->ch_layout.nb_channels;
+        sdl.updateAudioBuffer(frame->data[0], dataSize);
+
+        av_frame_free(&frame);
+
+        // 音频数据通常不需要睡眠，由回调驱动
     }
 }
