@@ -2,13 +2,28 @@
 
 bool Controller::open(const std::string &url)
 {
-    demuxer.open(url);
-    videoDecoder.open(url);
-    audioDecoder.open(url);
+    if (!demuxer.open(url))
+    {
+        return false;
+    }
+    if (!videoDecoder.open(url))
+    {
+        return false;
+    }
+    if (!audioDecoder.open(url))
+    {
+        return false;
+    }
+    return true;
 }
 void Controller::start()
 {
     audioThreadRunning = true;
+
+    videoThreadRunning = true;
+    audioPlayRunning = true;
+    videoRenderRunning = true;
+
     demuxer.start();
     audioThread = std::thread(&Controller::audioLoop, this);
     videoThread = std::thread(&Controller::videoLoop, this);
@@ -16,6 +31,10 @@ void Controller::start()
 void Controller::stop()
 {
     audioThreadRunning = false;
+    videoThreadRunning = false;
+    audioPlayRunning = false;
+    videoRenderRunning = false;
+
     if (audioThread.joinable())
         audioThread.join();
     if (videoThread.joinable())
