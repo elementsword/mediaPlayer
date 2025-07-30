@@ -133,29 +133,29 @@ MediaType Demuxer::getMediaType() const
 
 void Demuxer::run()
 {
-    AVPacket pkt = *av_packet_alloc();
+    AVPacket *pkt = av_packet_alloc();
 
     while (!quitFlag)
     {
-        int ret = av_read_frame(formatCtx, &pkt);
+        int ret = av_read_frame(formatCtx, pkt);
         if (ret < 0)
         {
             // 读完或错误，退出循环
             break;
         }
 
-        if (pkt.stream_index == videoStreamIndex)
+        if (pkt->stream_index == videoStreamIndex)
         {
-            videoPacketQueue.push(&pkt);
+            videoPacketQueue.push(pkt);
         }
-        else if (pkt.stream_index == audioStreamIndex)
+        else if (pkt->stream_index == audioStreamIndex)
         {
-            audioPacketQueue.push(&pkt);
+            audioPacketQueue.push(pkt);
         }
         else
         {
             // 不是音频也不是视频，释放包
-            av_packet_unref(&pkt);
+            av_packet_unref(pkt);
         }
     }
 

@@ -72,6 +72,7 @@ void Controller::audioLoop()
         av_packet_unref(audioPkt);
         av_packet_free(&audioPkt);
 
+
         if (frame)
         {
             audioFrameQueue.push(frame);
@@ -108,6 +109,7 @@ void Controller::videoLoop()
         }
     }
 }
+
 void Controller::videoRenderLoop()
 {
     videoRenderRunning = true;

@@ -3,6 +3,7 @@
 #include "../Decoder/decoder.h"
 #include "../Decoder/AudioDecoder/audioDecoder.h"
 #include "../Decoder/VideoDecoder/videoDecoder.h"
+#include "../Controller/controller.h"
 #include <fstream>
 const int outSampleRate = 44100;
 const int outChannels = 2;
@@ -18,20 +19,9 @@ int main(int argc, char *argv[])
     const std::string url = argv[1];
     std::cout << url << std::endl;
 
-    VideoDecoder *videodecoder = new VideoDecoder();
-    AudioDecoder *audiodecoder = new AudioDecoder();
+    Controller *controller = new Controller();
 
-    Sdl sdl;
-    videodecoder->open(url);
-    audiodecoder->open(url);
-    int width = videodecoder->getWidth();
-    int height = videodecoder->getHeight();
-    AVFrame *videoFrame = av_frame_alloc();
-    AVFrame *audioFrame = av_frame_alloc();
-    sdl.initVideo(width, height);
-    sdl.initAudio(outSampleRate, outChannels, AV_SAMPLE_FMT_S16);
-
-    av_frame_free(&videoFrame);
-    av_frame_free(&audioFrame);
-    sdl.cleanup();
+    controller->open(url);
+    controller->start();
+    
 }
