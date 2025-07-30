@@ -10,16 +10,22 @@ void Controller::start()
 {
     audioThreadRunning = true;
     demuxer.start();
-    audioThread = std::thread(&Controller::audioLoop, this);
-    videoThread = std::thread(&Controller::videoLoop, this);
+    audioDecoderThread = std::thread(&Controller::audioLoop, this);
+    videoDecoderThread = std::thread(&Controller::videoLoop, this);
+    audioPlayThread = std::thread(&Controller::audioPlayLoop, this);
+    videoPlayThread = std::thread(&Controller::videoRenderLoop, this);
 }
 void Controller::stop()
 {
     audioThreadRunning = false;
-    if (audioThread.joinable())
-        audioThread.join();
-    if (videoThread.joinable())
-        videoThread.join();
+    if (audioDecoderThread.joinable())
+        audioDecoderThread.join();
+    if (videoDecoderThread.joinable())
+        videoDecoderThread.join();
+    if (audioPlayThread.joinable())
+        audioPlayThread.join();
+    if (videoPlayThread.joinable())
+        videoPlayThread.join();
 
     audioDecoder.close();
     videoDecoder.close();
@@ -106,7 +112,7 @@ void Controller::videoRenderLoop()
         av_frame_free(&frame);
 
         // 控制帧率或者等待（如果需要）
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        SDL_Delay(40);
     }
 }
 

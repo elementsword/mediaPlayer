@@ -22,8 +22,10 @@ private:
     AudioDecoder audioDecoder;
     VideoDecoder videoDecoder;
     Sdl sdl;
-    std::thread audioThread;
-    std::thread videoThread;
+    std::thread audioDecoderThread;
+    std::thread videoDecoderThread;
+    std::thread audioPlayThread;
+    std::thread videoPlayThread;
     std::atomic<bool> quitFlag;
 
     // 解码后的帧队列 (需要线程安全队列)
